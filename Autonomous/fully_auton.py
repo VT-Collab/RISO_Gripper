@@ -49,6 +49,7 @@ print('[*] Connecting to low-level controller...')
 conn = connect2robot(PORT_robot)
 print("Connection Established")
 
+# depending on gripper type, comment in/out certain lines
 # CONNECT TO GRIPPER
 # PORT_gripper = 8081
 # print("[*] Connecting to gripper")
@@ -165,5 +166,4 @@ while True:
         send_arduino(comm_arduino2, pos_volt)
         
     if P == 'N':
-        #data = append_data(data, time.time(), readState(conn), neg_volt, 0)
         print("Congrats!! You're done")
