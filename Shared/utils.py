@@ -4,87 +4,15 @@ import cv2
 import time
 import pickle
 import socket
-import matplotlib.pyplot as plt
-import pickle as pkl
-import sys
 from scipy.interpolate import interp1d
 import pygame
 import pygame.camera
 import pyrealsense2 as rs
 from tkinter import *
-import serial
-
-# returns alpha value based on probability distribution
-def get_alpha(P):
-    val = 1/len(P) + 0.2
-    if len(P) < 4: val = 0.5
-
-    if np.max(P) > val:
-        return 0.5
-    else:
-        return 0.0
-
-# convert camera view to robot's frame
-def convert_camera(xc, yc, z, obj):
-    m_to_pixel = 0.52/420
-    xc = xc*m_to_pixel + 0.22
-
-    m_to_pixel = 0.762/640
-    yc = yc*m_to_pixel - 0.35
-
-    m_to_pixel = 0.76/755
-    z = z*m_to_pixel # go slightly above object
-
-    objects = []
-    for idx in range(len(yc)):
-        if z[idx] == 0:
-            z[idx] = 0.71
-
-        if obj == 'soft':
-            objects.append([xc[idx], yc[idx] + 0.07, 0.76 - z[idx] + 0.05])
-        if obj == 'rigid':
-            objects.append([xc[idx], yc[idx], 0.76 - z[idx] + 0.05])
-    return objects
-
-# predict probability distribution
-def predict_goal(s0, st, aH, THETA, prior, beta = 15):
-    P = [0.] * len(THETA)
-    # st += 0.5*aH
-
-    for idx in range(len(THETA)):
-        P[idx] = prior[idx]
-    dist_so_far = np.linalg.norm(st - s0)
-
-    for idx, theta in enumerate(THETA):
-        dist_to_goal = np.linalg.norm(theta - st)
-        min_dist = np.linalg.norm(theta - s0)
-        num = np.exp(beta * min_dist)
-        den = np.exp(beta * (dist_so_far + dist_to_goal))
-        P[idx] += num/den
-
-    P = np.asarray(P)
-    return P / np.sum(P)
 
 
-# move towards object with highest probability of being picked
-def get_assist(s, THETA, P):
-    idx = np.argmax(P)
-    aR = THETA[idx] - s
-    for idx, theta in enumerate(THETA):
-        distance = np.linalg.norm(s-theta)
-        print(distance)
-        if distance < 0.05:
-            return np.array([0., 0., 0.])
 
-    # aR = np.array([0., 0., 0.])
-    # for idx, theta in enumerate(THETA):
-    #     atheta = theta - s
-    #     if np.linalg.norm(atheta) > 1.0:
-    #         atheta /= np.linalg.norm(atheta)
-    #     aR += P[idx] * atheta
-    return aR
-
-
+# Append data to the save dataset
 def append_data(data, timestamp, cur_pos, wrench, voltage, Joystick_inputs):
     data["Time"].append(timestamp)
     data["Position"].append(cur_pos)
@@ -94,173 +22,10 @@ def append_data(data, timestamp, cur_pos, wrench, voltage, Joystick_inputs):
     return data
 
 
-def run_xdot(xdot, conn):
-    state = readState(conn)
-    qdot = xdot2qdot(xdot, state)
-    send2robot(conn, qdot, 'v')
-
-
-def find_pos(conn):
-    state = readState(conn)
-    return state['x'], state['O_F']
-
-
-def make_traj(start_pos, des_pos, val):
-    traj = []
-    for idx in range(val):
-        traj.append(start_pos + (1/val) * idx * (des_pos - start_pos))
-    traj.append(des_pos)
-    pickle.dump(traj, open('traj.pkl', 'wb'))
-
-
 def send_arduino(comm_arduino, user_input):
     string = '<' + str(user_input) + '>'
     comm_arduino.write(string.encode())
 
-
-def wrap_angles(theta):
-    if theta < -np.pi:
-        theta += 2*np.pi
-    elif theta > np.pi:
-        theta -= 2*np.pi
-    else:
-        theta = theta
-    return theta
-
-
-def play_shared_traj(conn, data, traj_name, voltage, total_time, alpha = 0.2):
-    traj = np.array(pickle.load(open(traj_name, "rb")))
-    traj = Trajectory(traj[:, :6], total_time)
-    start_t = time.time()
-    interface = Joystick()
-    while True:
-        z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT = interface.input()
-        Joystick_inputs = [z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT]
-        curr_t = time.time() - start_t
-        state = readState(conn)
-        x_des = traj.get(curr_t)
-        x_curr = state['x']
-        wrench = state['O_F']
-        x_des[0] = (x_curr[0]+z[1])*alpha + x_des[0]*(1-alpha)
-        x_des[1] = (x_curr[1]+z[0])*alpha + x_des[1]*(1-alpha)
-        x_des[2] = (x_curr[2] + z[2]) * alpha + x_des[2] * (1 - alpha)
-        x_des[3] = wrap_angles(x_des[3])
-        x_des[4] = wrap_angles(x_des[4])
-        x_des[5] = wrap_angles(x_des[5])
-        xdot = 1 * (x_des - x_curr)
-        xdot[3] = wrap_angles(xdot[3])
-        xdot[4] = wrap_angles(xdot[4])
-        xdot[5] = wrap_angles(xdot[5])
-
-        qdot = xdot2qdot(xdot, state)
-        send2robot(conn, qdot, 'v', traj_name)
-        data = append_data(data, time.time(), x_curr, wrench, voltage, Joystick_inputs)
-        if curr_t > total_time or wrench[2] < -5 or A_pressed:
-            return data
-
-
-def get_targets():
-    pipeline = configure_camera()
-    align_to = rs.stream.color
-    align = rs.align(align_to)
-
-    try:
-        depth_image, gray_img, gray1 = process_frames(pipeline, align)
-        xc, yc, z = identify_objects(gray_img, gray1, depth_image)
-        return xc, yc, z
-
-    finally:
-        pipeline.stop()
-
-
-def plot_camera(gray_img, image_depth):
-    cv2.imshow('RealSense RGB', gray_img)
-    cv2.imshow('RealSense Depth', image_depth)
-    cv2.waitKey(0)
-
-
-def configure_camera():
-    # Configure depth and color streams
-    pipeline = rs.pipeline()
-    config = rs.config()
-
-    # Get device product line for setting a supporting resolution
-    pipeline_wrapper = rs.pipeline_wrapper(pipeline)
-    pipeline_profile = config.resolve(pipeline_wrapper)
-    device = pipeline_profile.get_device()
-
-    found_rgb = False
-    for s in device.sensors:
-        if s.get_info(rs.camera_info.name) == 'RGB Camera':
-            found_rgb = True
-            break
-    if not found_rgb:
-        print("The demo requires Depth camera with Color sensor")
-        exit(0)
-
-    # device.hardware_reset()
-
-    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-
-    # Start streaming
-    profile = pipeline.start(config)
-
-    # Getting the depth sensor's depth scale (see rs-align example for explanation)
-    depth_sensor = profile.get_device().first_depth_sensor()
-    depth_scale = depth_sensor.get_depth_scale()
-    # print("Depth Scale is: " , depth_scale)
-
-    return pipeline
-
-
-def process_frames(pipeline, align):
-    # Wait for a coherent pair of frames: depth and color
-    frames = pipeline.wait_for_frames()
-    aligned_frames = align.process(frames)
-    depth_frame = aligned_frames.get_depth_frame()
-    color_frame = aligned_frames.get_color_frame()
-    # Convert images to numpy arrays
-    depth_image = np.asanyarray(depth_frame.get_data())
-    depth_image = depth_image[60:480, 0:640]
-    color_image = np.asanyarray(color_frame.get_data())
-    # Convert image to black and white
-    gray_img = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
-    gray_img = gray_img[60:480, 0:640]
-
-    gray_upper = 110
-    gray_lower = 0
-
-    kernal = np.ones((2, 2), "uint8")
-
-    gray1 = cv2.inRange(gray_img, gray_lower, gray_upper)
-    gray1 = cv2.morphologyEx(gray1, cv2.MORPH_OPEN, kernal)
-
-    return depth_image, gray_img, gray1
-
-
-def identify_objects(gray_img, gray1, depth_image):
-    xc = []
-    yc = []
-    z = []
-    
-    # Find all objects
-    (contoursred1, hierarchy) = cv2.findContours(gray1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    for pic, contourred in enumerate(contoursred1):
-        area = cv2.contourArea(contourred)
-        if (area > 150):
-            x, y, w, h = cv2.boundingRect(contourred)
-
-            # SWAP X AND Y HERE
-            xc.append(y + h/2)
-            yc.append(x + w/2)
-            z.append(depth_image[round(y+h/2), round(x+w/2)])
-
-            gray_img = cv2.rectangle(gray_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            cv2.putText(gray_img, "OBJECT", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255))
-    cv2.imwrite('image.jpg', gray_img)
-    #plot_camera(gray_img, depth_image)
-    return np.array(xc), np.array(yc), np.array(z)
 
 class Joystick(object):
 
@@ -311,7 +76,6 @@ class Trajectory(object):
         self.f4 = interp1d(timesteps, self.xi[:,3], kind='cubic')
         self.f5 = interp1d(timesteps, self.xi[:,4], kind='cubic')
         self.f6 = interp1d(timesteps, self.xi[:,5], kind='cubic')
-        # self.f7 = interp1d(timesteps, self.xi[:,6], kind='cubic')
 
     def get(self, t):
         """ get interpolated position """
@@ -322,6 +86,170 @@ class Trajectory(object):
         else:
             q = [self.f1(self.T), self.f2(self.T), self.f3(self.T), self.f4(self.T), self.f5(self.T), self.f6(self.T)]
         return np.asarray(q)
+
+
+
+""" Get locations of all objects in the environment"""
+def get_targets():
+    pipeline = configure_camera()
+    align_to = rs.stream.color
+    align = rs.align(align_to)
+
+    try:
+        depth_image, gray_img, gray1 = process_frames(pipeline, align)
+        xc, yc, z = identify_objects(gray_img, gray1, depth_image)
+        return xc, yc, z
+
+    finally:
+        pipeline.stop()
+
+
+def configure_camera():
+    # Configure depth and color streams
+    pipeline = rs.pipeline()
+    config = rs.config()
+
+    # Get device product line for setting a supporting resolution
+    pipeline_wrapper = rs.pipeline_wrapper(pipeline)
+    pipeline_profile = config.resolve(pipeline_wrapper)
+    device = pipeline_profile.get_device()
+
+    found_rgb = False
+    for s in device.sensors:
+        if s.get_info(rs.camera_info.name) == 'RGB Camera':
+            found_rgb = True
+            break
+    if not found_rgb:
+        print("The demo requires Depth camera with Color sensor")
+        exit(0)
+
+    # device.hardware_reset()
+
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+    # Start streaming
+    profile = pipeline.start(config)
+
+    # Getting the depth sensor's depth scale (see rs-align example for explanation)
+    depth_sensor = profile.get_device().first_depth_sensor()
+    depth_scale = depth_sensor.get_depth_scale()
+
+    return pipeline
+
+
+def process_frames(pipeline, align):
+    # Wait for a coherent pair of frames: depth and color
+    frames = pipeline.wait_for_frames()
+    aligned_frames = align.process(frames)
+    depth_frame = aligned_frames.get_depth_frame()
+    color_frame = aligned_frames.get_color_frame()
+    # Convert images to numpy arrays
+    depth_image = np.asanyarray(depth_frame.get_data())
+    depth_image = depth_image[60:480, 0:640]
+    color_image = np.asanyarray(color_frame.get_data())
+    # Convert image to black and white
+    gray_img = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+    gray_img = gray_img[60:480, 0:640]
+
+    gray_upper = 110
+    gray_lower = 0
+
+    kernal = np.ones((2, 2), "uint8")
+
+    gray1 = cv2.inRange(gray_img, gray_lower, gray_upper)
+    gray1 = cv2.morphologyEx(gray1, cv2.MORPH_OPEN, kernal)
+
+    return depth_image, gray_img, gray1
+
+
+def identify_objects(gray_img, gray1, depth_image):
+    xc = []
+    yc = []
+    z = []
+    
+    # Find all objects
+    (contoursred1, hierarchy) = cv2.findContours(gray1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for pic, contourred in enumerate(contoursred1):
+        area = cv2.contourArea(contourred)
+        if (area > 150):
+            x, y, w, h = cv2.boundingRect(contourred)
+
+            # SWAP X AND Y HERE
+            xc.append(y + h/2)
+            yc.append(x + w/2)
+            z.append(depth_image[round(y+h/2), round(x+w/2)])
+
+            gray_img = cv2.rectangle(gray_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            cv2.putText(gray_img, "OBJECT", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255))
+    cv2.imwrite('image.jpg', gray_img)
+    return np.array(xc), np.array(yc), np.array(z)
+
+
+# convert camera view to robot's base frame
+def convert_camera(xc, yc, z, obj):
+    m_to_pixel = 0.52/420
+    xc = xc*m_to_pixel + 0.22
+
+    m_to_pixel = 0.762/640
+    yc = yc*m_to_pixel - 0.35
+
+    m_to_pixel = 0.76/755
+    z = z*m_to_pixel # go slightly above object
+
+    objects = []
+    for idx in range(len(yc)):
+        if z[idx] == 0:
+            z[idx] = 0.71
+
+        if obj == 'soft':
+            objects.append([xc[idx], yc[idx] + 0.07, 0.76 - z[idx] + 0.05])
+        if obj == 'rigid':
+            objects.append([xc[idx], yc[idx], 0.76 - z[idx] + 0.05])
+    return objects
+
+
+# returns alpha value based on probability distribution
+def get_alpha(P):
+    val = 1/len(P) + 0.2
+    if len(P) < 4: val = 0.5
+
+    if np.max(P) > val:
+        return 0.5
+    else:
+        return 0.0
+
+
+# predict probability distribution
+def predict_goal(s0, st, aH, THETA, prior, beta = 15):
+    P = [0.] * len(THETA)
+    # st += 0.5*aH
+
+    for idx in range(len(THETA)):
+        P[idx] = prior[idx]
+    dist_so_far = np.linalg.norm(st - s0)
+
+    for idx, theta in enumerate(THETA):
+        dist_to_goal = np.linalg.norm(theta - st)
+        min_dist = np.linalg.norm(theta - s0)
+        num = np.exp(beta * min_dist)
+        den = np.exp(beta * (dist_so_far + dist_to_goal))
+        P[idx] += num/den
+
+    P = np.asarray(P)
+    return P / np.sum(P)
+
+
+# move towards object with highest probability of being picked
+def get_assist(s, THETA, P):
+    idx = np.argmax(P)
+    aR = THETA[idx] - s
+    for idx, theta in enumerate(THETA):
+        distance = np.linalg.norm(s-theta)
+        print(distance)
+        if distance < 0.05:
+            return np.array([0., 0., 0.])
+    return aR
 
 
 """Connecting and Sending commands to robot"""
@@ -359,7 +287,6 @@ def connect2gripper(PORT):
 
 
 def send2gripper(conn, arg):
-    # print('-----function called')
     send_msg = arg
     conn.send(send_msg.encode())
 
@@ -406,9 +333,20 @@ def readState(conn):
     return state
 
 
+def find_pos(conn):
+    state = readState(conn)
+    return state['x'], state['O_F']
+
+
 def xdot2qdot(xdot, state):
     J_pinv = np.linalg.pinv(state["J"])
     return J_pinv @ np.asarray(xdot)
+
+
+def run_xdot(xdot, conn):
+    state = readState(conn)
+    qdot = xdot2qdot(xdot, state)
+    send2robot(conn, qdot, 'v')
 
 
 def joint2pose(q):
@@ -476,7 +414,51 @@ def go2home(conn, h=None):
         return False
 
 
+def wrap_angles(theta):
+    if theta < -np.pi:
+        theta += 2*np.pi
+    elif theta > np.pi:
+        theta -= 2*np.pi
+    else:
+        theta = theta
+    return theta
 
 
+def make_traj(start_pos, des_pos, val):
+    traj = []
+    for idx in range(val):
+        traj.append(start_pos + (1/val) * idx * (des_pos - start_pos))
+    traj.append(des_pos)
+    pickle.dump(traj, open('traj.pkl', 'wb'))
 
+
+def play_shared_traj(conn, data, traj_name, voltage, total_time, alpha = 0.2):
+    traj = np.array(pickle.load(open(traj_name, "rb")))
+    traj = Trajectory(traj[:, :6], total_time)
+    start_t = time.time()
+    interface = Joystick()
+    while True:
+        z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT = interface.input()
+        Joystick_inputs = [z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT]
+        curr_t = time.time() - start_t
+        state = readState(conn)
+        x_des = traj.get(curr_t)
+        x_curr = state['x']
+        wrench = state['O_F']
+        x_des[0] = (x_curr[0]+z[1])*alpha + x_des[0]*(1-alpha)
+        x_des[1] = (x_curr[1]+z[0])*alpha + x_des[1]*(1-alpha)
+        x_des[2] = (x_curr[2] + z[2]) * alpha + x_des[2] * (1 - alpha)
+        x_des[3] = wrap_angles(x_des[3])
+        x_des[4] = wrap_angles(x_des[4])
+        x_des[5] = wrap_angles(x_des[5])
+        xdot = 1 * (x_des - x_curr)
+        xdot[3] = wrap_angles(xdot[3])
+        xdot[4] = wrap_angles(xdot[4])
+        xdot[5] = wrap_angles(xdot[5])
+
+        qdot = xdot2qdot(xdot, state)
+        send2robot(conn, qdot, 'v', traj_name)
+        data = append_data(data, time.time(), x_curr, wrench, voltage, Joystick_inputs)
+        if curr_t > total_time or wrench[2] < -5 or A_pressed:
+            return data
 

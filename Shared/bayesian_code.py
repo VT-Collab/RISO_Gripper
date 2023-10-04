@@ -1,25 +1,11 @@
 import argparse
 import os
 import pickle
-import socket
-import sys
 import time
-from fileinput import filename
-from multiprocessing import Process
-from tracemalloc import start
-import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import serial
-from utils import (append_data, connect2gripper, connect2robot, find_pos,
-                   go2home, joint2pose, make_traj, run_xdot, send2gripper,
-                   send_arduino, xdot2qdot, Joystick, play_shared_traj,
-                   predict_goal, get_assist, convert_camera, get_alpha, get_targets)
+from utils import *
 
-# HOME = [-0.016779, -0.137233, -0.016136, -0.988438, -0.008862,  0.871688, 0.758049]
-# HOME = [-0.017614, -0.375982,  0.001655, -1.531199,  0.003311,  1.16403 , 0.778423]
-# HOME = [-0.031721, -0.371688,  0.046463, -1.519194,  0.021286,  1.154843, 0.810934]
-# HOME = [-0.027781, -0.374255,  0.066114, -1.525339,  0.026778,  1.158676, 0.829868]
 HOME = [-0.005758, -0.363266,  0.131343, -1.509827,  0.055365,  1.158452, 0.923992]
 os.system('clear')
 # DEFINE PARAMETERS
@@ -49,9 +35,11 @@ print('Connected to Arduino')
 print("Returning Home")
 go2home(conn, h=HOME)
 
+# Initialize save data format
+data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
+
 # Initialize Variables
 interface = Joystick()
-data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
 voltage = 8.1
 send_arduino(comm_arduino, str(voltage))
 send2gripper(conn_gripper, 'o')
@@ -66,7 +54,7 @@ des_force = -15
 
 while True:
 
-    # SHARED AUTON MODE: pick up object
+    # SHARED AUTONOMOUS MODE: pick up object
     while True:
         z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT = interface.input()
         Joystick_inputs = [z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT]
@@ -83,9 +71,8 @@ while True:
                 # first take picture of all objects
                 xc, yc, z = get_targets()
                 print(xc, yc, z)
-                
 
-                # give location of objects in robot's frame
+                # user input determines grasp type
                 if A_pressed:
                     obj = 'soft'
                     voltage = 8.4
@@ -96,9 +83,11 @@ while True:
                     obj = 'rigid'
                     send2gripper(conn_gripper, "o")
 
+                # give location of objects in robot's frame
                 objects = convert_camera(xc, yc, z, obj)
                 print(objects)
-                # input()
+
+                # define robot's prior belief over objects
                 prior = [1/(len(objects))] * len(objects)
                 timestep = time.time()
 
@@ -145,7 +134,6 @@ while True:
                 flag = 0
 
             elif abs(x_dot[2]) < 0.0005:
-                # print("OUT OF LOOP!!!!!!!!!!!!!!")
                 timestep = time.time()
                 while time.time() - timestep < 7:
                     x_dot = [0.] * 6

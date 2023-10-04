@@ -1,25 +1,14 @@
-from fileinput import filename
-from tracemalloc import start
 import numpy as np
 import pickle
-import matplotlib.pyplot as plt
-import socket
 import argparse
-import cv2
 import time
 import os, sys
 import serial
-from multiprocessing import Process
 import os, sys
-from utils import GUI_Interface, Joystick, readState, send2gripper, xdot2qdot,\
-	Label, Entry, send2robot, connect2robot, connect2gripper, go2home, END, send_arduino, append_data, update_gui
+from utils import *
 
-# HOME = [3.600000e-05, -7.852010e-01,  1.350000e-04, -2.356419e+00, -3.280000e-04,  1.571073e+00,  7.856910e-01]
-# HOME = [-5.048000e-03, -3.436380e-01,  3.150000e-04, -1.205445e+00, 5.280000e-04,  8.612520e-01,  7.866820e-01]
-# HOME = [-0.017614, -0.375982,  0.001655, -1.531199,  0.003311,  1.16403 , 0.778423]
-# HOME = [-0.031721, -0.371688,  0.046463, -1.519194,  0.021286,  1.154843, 0.810934]
 HOME = [-0.005758, -0.363266,  0.131343, -1.509827,  0.055365,  1.158452, 0.923992]
-# python fully_remote.py --user 2 --gripper granular
+
 def main():
 	# DEFINE PARAMETERS
 	p = argparse.ArgumentParser()
@@ -46,14 +35,11 @@ def main():
 		conn_gripper = connect2gripper(PORT_gripper)
 		print("Connection Established")
 
-	# CONNECT TO PRESSURE PORT
+	# CONNECT TO PRESSURE PORT AND DEFINE PRESSURE/VOLTAGE BOUNDS
 	"""
 	NOTE: Arduino 2 controls the pressure and Arduino 1 controls valves
 	"""
 
-	"""
-	FIX THE ARDUINO PORT NUMBERS AFTER VERIFYING
-	"""
 	if args.gripper == 'granular':
 		des_force = -35
 		comm_arduino1 = serial.Serial('/dev/ttyACM2', baudrate=9600)
@@ -105,12 +91,10 @@ def main():
 	GUI_2.myLabel1.grid(row = 0, column = 0, pady = 50, padx = 50)
 	GUI_2.root.update()
 
-	# INITIALIZE VARIABLES
-	if args.gripper == 'modular' or args.gripper == 'granular':
-		data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
-	else:
-		data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
+	# INITIALIZE SAVE DATA FORMAT
+	data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
 
+	# INITIALIZE VARIABLES
 	action_scale = 0.3
 	mode = 'v'
 	interface = Joystick()
@@ -118,32 +102,27 @@ def main():
 	flag_gui2 = False
 	voltage = 8.16
 	pressure = 1.0
-	# send_arduino(comm_arduino2, voltage)
 	input('[*] PRESS ENTER TO START')
 	print("Ready for Teleoperation... ")
 
-	timestep =time.time()
 
 	while True:
-		# print(time.time()-timestep)
 		state = readState(conn)
 		x_dot = [0]*6
 		z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT = interface.input()
 		Joystick_inputs = [z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT]
 
-		# GRIPPER COMMANDS
+		# RIGID GRIPPER COMMANDS FOR RISO
 		if A_pressed : # Close
 			send2gripper(conn_gripper, "c")
 			time.sleep(2.0)
-			# timestep =time.time()
 			
 		if B_pressed : # Open
 			send2gripper(conn_gripper, "o")
 			time.sleep(2.0)
-			# timestep = time.time()
 			
 
-		# PRESSURE COMMANDS
+		# PRESSURE COMMANDS FOR ALL GRIPPERS
 		if LT: 
 			pressure -= 1.0
 			voltage -= 0.5
@@ -191,7 +170,7 @@ def main():
 			send_arduino(comm_arduino2, voltage)
 			break
 
-		# resets robot position to correct orientation error
+		# resets robot to home position
 		if STOP_pressed:
 			if args.gripper == 'riso':
 				comm_arduino2 = serial.Serial('/dev/ttyACM0', baudrate=115200)
@@ -213,7 +192,8 @@ def main():
 			x_dot[1] = action_scale/4 * z[0]
 			x_dot[2] = -action_scale/4 * z[2]
 
-		# IF FORCE OBSERVED GREATER THAN 10 (default 25), DON'T MOVE
+		# IF FORCE OBSERVED GREATER THAN 10 (default 25), DON'T MOVE IN Z
+		# THIS IS IMPLEMENTED FOR ROBOT SAFETY
 		if wrench[2] <= des_force:
 			if x_dot[2] < 0.0:
 				x_dot[2] = 0.0*x_dot[2]
@@ -230,10 +210,6 @@ def main():
 
 		# SEND JOINT VELOCITIES TO ROBOT
 		send2robot(conn, q_dot, mode)
-
-	
-	
-
 
 if __name__=='__main__':
 	main()

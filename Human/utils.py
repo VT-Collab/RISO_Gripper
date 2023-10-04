@@ -1,15 +1,7 @@
-from operator import truediv
 import numpy as np
-import cv2
 import time 
-import pickle
 import socket
-import matplotlib.pyplot as plt
-import pickle as pkl
-import sys
-from scipy.interpolate import interp1d
 import pygame
-import pyrealsense2 as rs
 from tkinter import *
 import serial
 
@@ -158,7 +150,6 @@ def listen2robot(conn):
 	state["dq"] = state_vector[7:14]
 	state["tau"] = state_vector[14:21]
 	state["O_F"] = state_vector[21:27]
-	# print(state_vector[21:27])
 	state["J"] = state_vector[27:].reshape((7, 6)).T
 
 	# get cartesian pose
@@ -249,17 +240,7 @@ def go2home(conn, h=None):
 	elif elapsed_time >= total_time:
 		return False
 
-
-# def wrap_angles(theta):
-# 	if theta < -np.pi:
-# 		theta += 2*np.pi
-# 	elif theta > np.pi:
-# 		theta -= 2*np.pi
-# 	else:
-# 		theta = theta
-# 	return theta
-
-
+"""UPDATING THE GUI INTERFACE BASED ON USER INPUTS"""
 def update_gui(gripper, GUI_1, GUI_2, force, pressure, voltage, flag_1, flag_2):
 	if gripper == 'granular':
 		# CHOOSE COLOR TO DISPLAY END EFFECTOR FORCE
