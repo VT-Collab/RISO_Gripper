@@ -14,17 +14,17 @@ import pyrealsense2 as rs
 from tkinter import *
 import serial
 
-
+# returns alpha value based on probability distribution
 def get_alpha(P):
     val = 1/len(P) + 0.2
     if len(P) < 4: val = 0.5
 
     if np.max(P) > val:
-        return 0.6
+        return 0.5
     else:
         return 0.0
 
-
+# convert camera view to robot's frame
 def convert_camera(xc, yc, z, obj):
     m_to_pixel = 0.52/420
     xc = xc*m_to_pixel + 0.22
@@ -46,7 +46,7 @@ def convert_camera(xc, yc, z, obj):
             objects.append([xc[idx], yc[idx], 0.76 - z[idx] + 0.05])
     return objects
 
-
+# predict probability distribution
 def predict_goal(s0, st, aH, THETA, prior, beta = 15):
     P = [0.] * len(THETA)
     # st += 0.5*aH
@@ -66,7 +66,7 @@ def predict_goal(s0, st, aH, THETA, prior, beta = 15):
     return P / np.sum(P)
 
 
-# move towards weighted mean over goals
+# move towards object with highest probability of being picked
 def get_assist(s, THETA, P):
     idx = np.argmax(P)
     aR = THETA[idx] - s
@@ -261,58 +261,6 @@ def identify_objects(gray_img, gray1, depth_image):
     cv2.imwrite('image.jpg', gray_img)
     #plot_camera(gray_img, depth_image)
     return np.array(xc), np.array(yc), np.array(z)
-
-
-# def identify_objects(gray_img, gray1):
-#     xc = []
-#     yc = []
-    
-#     # Find all objects
-#     (contoursred1, hierarchy) = cv2.findContours(gray1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-#     for pic, contourred in enumerate(contoursred1):
-#         area = cv2.contourArea(contourred)
-#         if (area > 75):
-#             x, y, w, h = cv2.boundingRect(contourred)
-#             xc.append(480 - (y + h/2))
-#             yc.append(341 - (x+ w/2))
-            
-#             gray_img = cv2.rectangle(gray_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-#             cv2.putText(gray_img, "OBJECT", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255))
-    
-#     # cv2.imshow('image', gray_img)
-#     # cv2.waitKey(0)
-
-#     return np.array(xc), np.array(yc)
-
-
-# def get_objects():
-#     pygame.camera.init()
-    
-#     while True:
-#         camlist = pygame.camera.list_cameras()
-#         if camlist:
-#             cam = pygame.camera.Camera(camlist[0], (640, 480))
-#             cam.start()
-#             image = cam.get_image()
-#             pygame.image.save(image, "image.jpg")
-#             break
-    
-#     img_rgb = cv2.imread('image.jpg')
-#     gray_img = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-
-#     # cv2.imshow('image', gray_img)
-#     # cv2.waitKey(0)
-
-#     gray_upper = 110
-#     gray_lower = 0
-
-#     kernal = np.ones((5, 5), "uint8")
-#     gray1 = cv2.inRange(gray_img, gray_lower, gray_upper)
-#     gray1 = cv2.morphologyEx(gray1, cv2.MORPH_OPEN, kernal)
-#     cam.stop()
-
-#     return identify_objects(gray_img, gray1)
-
 
 class Joystick(object):
 
