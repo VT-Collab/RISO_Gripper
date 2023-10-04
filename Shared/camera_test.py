@@ -8,4 +8,5 @@ from utils import (append_data, connect2gripper, connect2robot, find_pos,
 
 import pyrealsense2 as rs
 
+# check camera view without connecting to robot
 xc,yc,z = get_targets()
