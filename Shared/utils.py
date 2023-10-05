@@ -1,4 +1,3 @@
-from operator import truediv
 import numpy as np
 import cv2
 import time

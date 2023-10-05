@@ -1,21 +1,8 @@
 import argparse
-import os
-import pickle
-import socket
-import sys
 import time
-from fileinput import filename
-from multiprocessing import Process
-from tracemalloc import start
-import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import serial
-
-from utils import (append_data, connect2gripper, connect2robot, find_pos,
-                   get_target, go2home, joint2pose, make_traj, pick_obj,
-                   play_traj, readState, run_xdot, send2gripper, send_arduino,
-                   send_force, xdot2qdot)
+from utils import *
 
 # Define Start Position
 HOME = [0.0, -0.0, -0.0, -1.28331, -0.0, 1.27004, 0.756409]
@@ -42,34 +29,30 @@ print("Returning Home")
 go2home(conn, h=HOME)
 
 step = 0
+# DEFINE DATA SAVING FORMAT
 data = {"Time": [], "Position": [], "Force": [], "Inputs": [], "Voltage": []}
+
+# DEFINE THE PRESSURE/VOLTAGE BOUNDS AND CONNECTIONS FOR EACH GRIPPER
 if args.gripper == 'granular':
-    # SET PRESSURE VALUES
     pos_volt = '6.0'
     neg_volt = '0.0'
-    # CONNECT TO PRESSURE
     comm_arduino1 = serial.Serial('/dev/ttyACM2', baudrate=9600)
     comm_arduino2 = serial.Serial('/dev/ttyACM3', baudrate=19200)
 
     send_arduino(comm_arduino1, '1')
     send_arduino(comm_arduino2, pos_volt)
 elif args.gripper == 'modular':
-    # SET PRESSURE VALUES
     pos_volt = '0.0'
     neg_volt = '14.0'
-    # CONNECT TO PRESSURE
     comm_arduino1 = serial.Serial('/dev/ttyACM2', baudrate=9600)
     comm_arduino2 = serial.Serial('/dev/ttyACM3', baudrate=19200)
 
     send_arduino(comm_arduino1, '0')
     send_arduino(comm_arduino2, pos_volt)
 elif args.gripper == 'soft':
-    # SET PRESSURE VALUES
     pos_volt = 8.4
     neg_volt = 4
-    # CONNECT TO PRESSURE
     comm_arduino2 = serial.Serial('/dev/ttyACM1', baudrate=115200)
-    # CONNECT TO GRIPPER
     PORT_gripper = 8081
     print("[*] Connecting to gripper")
     conn_gripper = connect2gripper(PORT_gripper)
@@ -81,6 +64,7 @@ time.sleep(15)
 print('Connected to Arduino')
 input("Enter to start test")
 
+# MAIN LOOP
 while True:
     P = input("Are there objects to transport? Y or N: ")
     
@@ -154,19 +138,18 @@ while True:
         
         print('object picked up')
 
-        # lift straight up for 10 seconds to avoid other objects
+        # define trajectory and move to basket
         timestep = time.time()
         while (time.time() - timestep) < 10:
             xdot = [0., 0., 0.02, 0., 0., 0.]
             run_xdot(xdot, conn)
         
-        # move to basket
         start_pos, start_q, states = find_pos(conn)
         basket_pos = [0.45, -0.65, 0.25, start_pos[3], start_pos[4], start_pos[5]]
         make_traj(start_pos, basket_pos, 10)
         data = play_traj(conn, data, 'traj.pkl', pos_volt, 10)
 
-        # place object in basket
+        # release object
         if obj == 'rigid':
             if args.gripper == 'soft':
                 send2gripper(conn_gripper, "o")

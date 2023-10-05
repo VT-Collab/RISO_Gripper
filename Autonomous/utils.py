@@ -1,12 +1,9 @@
-from operator import truediv
 import numpy as np
 import cv2
 import time 
 import pickle
 import socket
 import matplotlib.pyplot as plt
-import pickle as pkl
-import sys
 from scipy.interpolate import interp1d
 import pygame
 import pyrealsense2 as rs
@@ -103,7 +100,6 @@ class Trajectory(object):
 		self.f4 = interp1d(timesteps, self.xi[:,3], kind='cubic')
 		self.f5 = interp1d(timesteps, self.xi[:,4], kind='cubic')
 		self.f6 = interp1d(timesteps, self.xi[:,5], kind='cubic')
-		# self.f7 = interp1d(timesteps, self.xi[:,6], kind='cubic')
 
 	def get(self, t):
 		""" get interpolated position """
@@ -395,39 +391,6 @@ def get_target():
 			#print(r1, c1)
 			x = r1 - 580
 			y = 150 - c1
-			#print(x, y)
-			# print("The depth at [{},{}] is {}".format(x_adjust-(x/(385*0.435)),y_adjust+(y/(175*0.2)),depth_image[c1, r1]))
-
-		# if len(contoursred1) > 0:
-		# 	centers = []
-		# 	heights = []
-		# 	# Find the biggest contour
-		# 	# biggest_contour = max(contoursred1, key=cv2.contourArea)
-		# 	# print(biggest_contour)
-		# 	for contour in contoursred1:
-		# 		if cv2.contourArea(contour) > 5:
-		# 		# Find center of contour and draw filled circle
-		# 			moments = cv2.moments(contour)
-		# 			centre_of_contour = (int(moments['m10'] / moments['m00']), int(moments['m01'] / moments['m00']))
-		# 			cv2.circle(gray_img, centre_of_contour, 2, (0, 0, 255), -1)
-		# 			# Save the center of contour so we draw line tracking it
-		# 			center_points1 = centre_of_contour
-		# 			r1 = center_points1[0]
-		# 			c1 = center_points1[1]
-		# 			"""
-		# 			Take the depth as (y,x) when calling it from the image_depth matrix
-		# 			The x and y axis are flipped
-		# 			"""
-		# 			centers.append(np.array([r1, c1]))
-		# 			heights.append(depth_image[c1, r1])
-		# 			# print(r1, c1)
-		# 			# x = r1 - 580
-		# 			# y = 150 - c1
-		# 			# print(x, y)
-
-		# 	pick_obj = centers[np.argmin(heights)]
-		# 	x = pick_obj[0] - 580
-		# 	y = 150 - pick_obj[1]
 
 		# Apply colormap on depth image (image must be converted to 8-bit per pixel first)
 		depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -445,13 +408,6 @@ def get_target():
 			image_rgb = color_image
 			image_depth = depth_colormap
 
-		# take start position 
-		#cv2.imshow('RealSense RGB', gray_img)
-		# cv2.imshow('RealSense Depth', image_depth)
-		#cv2.waitKey(0)
-		# print(x,y)
-		#print('depth image', np.min(heights))
-		# print(x, y, c1, r1)
 		print('x ', 0.72-0.2525 + (y*0.0011), 'y ', -0.26 + (x*-0.00115), 'depth_image ',  depth_image[c1, r1])
 
 		#type_grip = input("S: soft, R: rigid: ")
@@ -461,20 +417,14 @@ def get_target():
 			x_adjust = -.32
 			y_adjust = .72-0.39
 			return x_adjust + (x*-0.00115), y_adjust + (y*0.0011), 0.69 - depth_image[c1, r1]/1000 + 0.045, 'soft'
-			return x_adjust -(x*.00111), y_adjust +(y*.001095), 0.69-depth_image[c1, r1]/1000+0.045, 'soft' #'soft'
-			#return x_adjust -(x/395*0.435), y_adjust +(y/172.5*0.2), 0.69-depth_image[c1, r1]/1000+0.035, 'soft'  #Old defaults are .332 and .74
-
+			
 		else:
 			# goes outtooo far, reduce value of slope
 			print("!!!!!!!!!")
-			#x_adjust = -.1925
 			x_adjust = -0.26 #-0.22 - 0.042
-			# y_adjust =  .72
 			y_adjust = 0.72 - 0.4
 			return x_adjust + (x*-0.00114), y_adjust + (y*0.0011), 0.8 - depth_image[c1, r1]/950 - 0.045, 'rigid'
-			#return x_adjust -(x*.00095), y_adjust +(y*.0011), 0.80-depth_image[c1, r1]/950 - 0.045, 'rigid'
-		# if cv2.waitKey(1) & 0xFF == ord('q'):
-		#     break
+			
 
 	finally:
 
@@ -514,7 +464,6 @@ def play_traj(conn, data, traj_name, voltage, total_time):
 		send2robot(conn, qdot, 'v', traj_name)
 		if curr_t > total_time or wrench[2] < -20 or A_pressed:
 			return data
-		#data = append_data(data, time.time(), state, voltage, 0)
 
 # go fast until distance reached, then go slow?
 def pick_obj(comm_arduino, conn, conn_gripper, data, pos_volt, neg_volt, obj):
@@ -526,42 +475,32 @@ def pick_obj(comm_arduino, conn, conn_gripper, data, pos_volt, neg_volt, obj):
 		time.sleep(10)
 		while True:
 			if down:
-				#xdot = [0., 0., -0.1, 0., 0., 0.]
 				xdot = [0., 0., -0.05, 0., 0., 0.]
 				run_xdot(xdot, conn)
 				state = readState(conn)
 				wrench = state['O_F']
-				#print(wrench[2])
-				#data = append_data(data, time.time(), state, pos_volt, 0)
-				if wrench[2] < -5: # originally 3
+				if wrench[2] < -5: 
 					
 					pick = True
 					down = False
 					send_arduino(comm_arduino, neg_volt)
 			
 			if pick:
-				#xdot = [0., 0., -0.05, 0., 0., 0.]
 				xdot = [0., 0., -0.05, 0., 0., 0.]
 				run_xdot(xdot, conn)
 				state = readState(conn)
 				wrench = state['O_F']
-				#print(wrench[2])
-				#data = append_data(data, time.time(), state, neg_volt, 0)
-				if wrench[2] < -20: # originally -10
+				if wrench[2] < -20: 
 					up = True
 					pick = False
-					#up_time = time.time()
-					#time.sleep(2)
 					time.sleep(10)
 					up_time = time.time()
 
 			if up:
-				#xdot = [0., 0., 0.5, 0., 0., 0.]
 				xdot = [0., 0., 0.05, 0., 0., 0.]
 				run_xdot(xdot, conn)
 				state = readState(conn)
-				#data = append_data(data, time.time(), state, neg_volt, 0)
-				if (time.time() - up_time) > 2: #originally 2
+				if (time.time() - up_time) > 2:
 					return data
 		
 	elif obj == 'rigid':
@@ -572,7 +511,6 @@ def pick_obj(comm_arduino, conn, conn_gripper, data, pos_volt, neg_volt, obj):
 			xdot = [0., 0., -0.1, 0., 0., 0.]
 			run_xdot(xdot, conn)
 			state = readState(conn)
-			#data = append_data(data, time.time(), state, neg_volt, 0)
 		# close gripper around object
 		send2gripper(conn_gripper, "c")
 		time.sleep(2)
@@ -581,7 +519,6 @@ def pick_obj(comm_arduino, conn, conn_gripper, data, pos_volt, neg_volt, obj):
 			xdot = [0., 0., 0.5, 0., 0., 0.]
 			run_xdot(xdot, conn)
 			state = readState(conn)
-			#data = append_data(data, time.time(), state, neg_volt, 0)
 
 	return data
 	
@@ -667,7 +604,6 @@ def send_force(conn, conn2, data, args):
 	
 	flag = False
 	voltage = data["Voltage"][-1]
-	# voltage = 1.0
 
 	while True:
 		timestamp = time.time()
@@ -770,11 +706,6 @@ def teleop(conn, conn_gripper, args):
 
 		Joystick_inputs = [z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT]
 
-
-		# if START_pressed:
-		# 	print("[*] Done")
-		# 	return data
-
 		if A_pressed:
 			fast_flag = False
 			if (contact_switch == False):
@@ -839,7 +770,6 @@ def teleop(conn, conn_gripper, args):
 
 
 		q_dot = xdot2qdot(x_dot, state)
-		# print(wrench[2])
 		if wrench[2]<-28 and not flag_gui:
 			GUI_1.fg = '#00ff00'
 			GUI_1.textbox1 = Entry(GUI_1.root, width = 5, bg = "white", fg=GUI_1.fg, borderwidth = 3, font=("Palatino Linotype", 40))
@@ -862,12 +792,6 @@ def teleop(conn, conn_gripper, args):
 			if x_dot[2] < 0:
 				print("Returning Zero Velocity")
 				q_dot = 0*q_dot
-
-		# data["Time"].append(timestamp)
-		# data["Position"].append(state["x"])
-		# data["Force"].append(state["O_F"])
-		# data["Inputs"].append(Joystick_inputs)
-		# data["Voltage"].append(voltage)
 
 		
 
@@ -894,8 +818,6 @@ def pressure_control():
 
 	dist_arr= []
 	while True:
-		# dist = comm_arduino.readline()
-		# dist_arr.append(str(dist))
 		z, A_pressed, B_pressed, X_pressed, Y_pressed, START_pressed, STOP_pressed, RT, LT = interface.input()
 		if RT:
 			voltage += 0.5
@@ -911,7 +833,6 @@ def pressure_control():
 			GUI.textbox1.delete(0, END)
 			GUI.textbox1.insert(0, round(voltage, 1))
 			GUI.root.update()
-			# conn.send(data.encode())
 			send_arduino(comm_arduino, voltage)
 			time.sleep(0.2)
 
@@ -930,13 +851,11 @@ def pressure_control():
 			GUI.textbox1.delete(0, END)
 			GUI.textbox1.insert(0, round(voltage, 1))
 			GUI.root.update()
-			# conn.send(data.encode())
 			send_arduino(comm_arduino, voltage)
 			time.sleep(0.2)
 
 		if STOP_pressed or exit == 'e':
 			data = str(8.16)
-			# conn.send(data.encode())
 			send_arduino(comm_arduino, data)
 			time.sleep(1)
 			data_arr = []
@@ -949,9 +868,6 @@ def pressure_control():
 					continue
 				file.write(data_arr[idx+1] + '\n')
 			file.close()
-			# data = 's'
-			# conn.send(data.encode())
-			# send_arduino(comm_arduino, data)
 			print("[*] Done")
 			print(dist_arr)
 			return False

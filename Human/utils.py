@@ -3,7 +3,6 @@ import time
 import socket
 import pygame
 from tkinter import *
-import serial
 
 """Home Position for Panda for all tasks"""
 HOME = [0.8385, -0.0609, 0.2447, -1.5657, 0.0089, 1.5335, 1.8607]
