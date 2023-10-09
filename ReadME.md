@@ -16,3 +16,8 @@ To install this repo use the command
 ```bash
 git clone https://github.com/VT-Collab/RISO_ScienceRobotics.git
 ```
+## Run Human Control
+
+## Run Autonomous Control
+
+## Run Shared Control
