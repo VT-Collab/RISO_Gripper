@@ -25,7 +25,7 @@ git clone https://github.com/VT-Collab/RISO_ScienceRobotics.git
 ## Human Control
 In this control approach, the user is in complete control of the robot and the gripper. The user operates the gripper and the robot using a handheld controller. 
 
-For the RISO gripper, the user controls the rigid gripper as well as the pressure in the soft adhesives for soft grasping. For the Granular gripper [1] and SoftGripper [2], the user only controls the pressure in the gripper. For ease of controlling the pressure and force that the gripper applies, we provide a GUI that shows the pressure and force values to the user when performing the task.
+For the RISO gripper, the user controls the rigid gripper as well as the pressure in the soft adhesives for soft grasping. For the Granular gripper [[1]](#references) and SoftGripper [[2]](#references), the user only controls the pressure in the gripper. For ease of controlling the pressure and force that the gripper applies, we provide a GUI that shows the pressure and force values to the user when performing the task.
 
 The approach can be implemented by running the following code:
 
@@ -40,7 +40,7 @@ Using this control strategy, the robot autonomously detects the objects and plan
 
 The robot leverages an [Intel RealSense D435](https://www.intelrealsense.com/depth-camera-d435/) depth camera to detect the objects present in its workspace. It determines the object to grasp based on the area of the object, i.e., the robot picked up the object with the largest area first. The grasp type for RISO was determined based on the height of the object to grasp. If the height if the object was greater that 7.5 cm, the robot used the rigid mechanism for the grasp, and soft adhesives otherwise.
 
-For all the soft grasps, i.e. for RISO (soft adhesive), Granular gripper and SoftGripper, the robot used preset pressure values to perform the grasps. We performed multiple tests with different pressure values and selected the best performing pressure values for performing the autonomous tests.
+For all the soft grasps, i.e. for RISO (soft adhesive), Granular gripper [[1]](#references) and SoftGripper [[2]](#references), the robot used preset pressure values to perform the grasps. We performed multiple tests with different pressure values and selected the best performing pressure values for performing the autonomous tests.
 
 The approach can be implemented by running the following code:
 
@@ -66,7 +66,7 @@ $$
 
 We get the final actions to be taken by blending the robot actions with the human actions as $a = \alpha \cdot a_\mathcal{H} + (1 - \alpha) \cdot a_\mathcal{R}$
 
-Once the robot reaches the objects and the user completes the final alignment of the gripper with the object, the robot takes over and performs the grasp using the grasp type selected by the user. For the soft grasps using RISO, Granular gripper and the SoftGripper, the robot uses preset pressure and force values similar to [Autonomous Control](autonomous-control). 
+Once the robot reaches the objects and the user completes the final alignment of the gripper with the object, the robot takes over and performs the grasp using the grasp type selected by the user. For the soft grasps using RISO, Granular gripper [[1]](#references) and the SoftGripper [[2]](#references), the robot uses preset pressure and force values similar to [Autonomous Control](#autonomous-control). 
 
 The approach can be implemented by running the following code:
 
@@ -75,3 +75,9 @@ The approach can be implemented by running the following code:
 cd /home/<user>/RISO_ScienceRobotics/Shared
 python3 bayesian_code.py --user test
 ```
+
+## References
+
+[[1]](https://www.soft-gripping.shop/en/robot-magician-softgripper-3-fingers.html) Dobot Magician SoftGripper - 3 Fingers
+
+[[2]](https://www.pnas.org/doi/abs/10.1073/pnas.1003250107) Eric Brown et  el. “Universal robotic gripper based on the jamming of granular material”. In:Proceedings of the National Academy of Sciences 107.44 (2010), pp. 18809–18814.
