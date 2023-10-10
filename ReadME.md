@@ -53,7 +53,7 @@ Replace the <gripper_type> with 'riso', 'granular' or 'modular' based on the gri
 
 
 ## Shared Control
-Here, we implement the shared control algorithm outlined in Section 2.3 of the manuscript.
+Here, we implement the shared control algorithm outlined in Section 2.4 of the manuscript.
 
 Leveraging the RGB-D camera mounted at its end-effector, the robot gets the positions of all the objects in its workspace. The user inputs the grasp type to the robot using the controller before starting the experiment. As the user starts moving the robot, the robot uses Equation (2):
 
