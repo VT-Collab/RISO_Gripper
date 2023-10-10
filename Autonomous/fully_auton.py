@@ -1,6 +1,8 @@
 import argparse
 import time
 import numpy as np
+import pickle
+import os, sys
 import serial
 from utils import *
 
@@ -13,10 +15,14 @@ parser.add_argument('--des_force', type=int, default=-25)
 
 # Gripper Types: Modular, Granular, Soft
 parser.add_argument('--gripper', type=str, default='granular')
+parser.add_argument('--user', type=str, default='test')
 args = parser.parse_args()
-t = time.localtime()
-current_time = time.strftime("%H:%M:%S", t)
-file_name = 'user study: autonomous ' + args.gripper + ' ' + current_time + '.pkl'
+
+if not os.path.exists('user_study/{}/'.format(args.gripper)):
+		os.makedirs('user_study/{}/'.format(args.gripper))
+
+file_name = 'user_study/{}/user_{}.pkl'.format(args.gripper, args.user)
+
 
 # CONNECT TO ROBOT
 PORT_robot = 8080
@@ -173,4 +179,5 @@ while True:
         go2home(conn, h=HOME)
         
     if P == 'N':
+        pickle.dump(data, open(file_name, 'wb'))
         print("Congrats!! You're done")
