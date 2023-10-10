@@ -30,10 +30,10 @@ For the RISO gripper, the user controls the rigid gripper as well as the pressur
 The approach can be implemented by running the following code:
 
 ```bash
-cd /home/<user>/RISO_ScienceRobotics/Human
+cd /home/<path_to_dir>/RISO_ScienceRobotics/Human
 python3 fully_remote.py --gripper <gripper_type> --user test
 ```
-Replace the <gripper_type> with 'riso', 'granular' or 'modular' based on the gripper being used.
+Replace the <gripper_type> with 'riso', 'granular' or 'modular' based on the gripper being used and <path_to_dir> with your folder path to this directory
 
 ## Autonomous Control
 Using this control strategy, the robot autonomously detects the objects and plans its trajectory to perform the grasp without any human feedback.
@@ -45,9 +45,12 @@ For all the soft grasps, i.e. for RISO (soft adhesive), Granular gripper [[1]](#
 The approach can be implemented by running the following code:
 
 ```bash
-cd /home/<user>/RISO_ScienceRobotics/Autonomous
+cd /home/<path_to_dir>/RISO_ScienceRobotics/Autonomous
 python3 fully_auton.py --gripper <gripper_type> --des_force -25 --user test
 ```
+
+Replace the <gripper_type> with 'riso', 'granular' or 'modular' based on the gripper being used and <path_to_dir> with your folder path to this directory
+
 
 ## Shared Control
 Here, we implement the shared control algorithm outlined in Section 2.3 of the manuscript.
@@ -66,15 +69,16 @@ $$
 
 We get the final actions to be taken by blending the robot actions with the human actions as $a = \alpha \cdot a_\mathcal{H} + (1 - \alpha) \cdot a_\mathcal{R}$
 
-Once the robot reaches the objects and the user completes the final alignment of the gripper with the object, the robot takes over and performs the grasp using the grasp type selected by the user. For the soft grasps using RISO, Granular gripper [[1]](#references) and the SoftGripper [[2]](#references), the robot uses preset pressure and force values similar to [Autonomous Control](#autonomous-control). 
+Once the robot reaches the objects and the user completes the final alignment of the gripper with the object, the robot takes over and performs the grasp using the grasp type selected by the user. For the soft grasps using RISO the robot uses preset pressure and force values similar to [Autonomous Control](#autonomous-control). 
 
 The approach can be implemented by running the following code:
 
 
 ```bash
-cd /home/<user>/RISO_ScienceRobotics/Shared
+cd /home/<path_to_dir>/RISO_ScienceRobotics/Shared
 python3 bayesian_code.py --user test
 ```
+Replace <path_to_dir> with your folder path to this directory
 
 ## References
 
