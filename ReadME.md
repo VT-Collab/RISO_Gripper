@@ -1,4 +1,4 @@
-# Unified Rigid and Soft Grippers for Manipulating Objects during Human-Robot Interaction
+# Combining and Decoupling Rigid and Soft Grippers to Enhance Robotic Manipulation
 
 This repo porivdes our implementation of Human Control, Autonomous Control and Shared Control for leveraging RISO grippers with 7-DoF Franka Emika Panda robot arm.
 
